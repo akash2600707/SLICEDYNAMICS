@@ -22,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: JSON.stringify({
         from: 'SliceDynamics Contact <onboarding@resend.dev>',
-        to: 'your@email.com',   // ← replace with your real email
+        to: 'slicedynamics@gmail.com',   // ← replace with your real email
         reply_to: email,
         subject: `Contact Form: ${subject || 'New Message'}`,
         html: `
