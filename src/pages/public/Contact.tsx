@@ -23,15 +23,28 @@ export default function Contact() {
     })
   }, [])
 
-  async function handleSubmit(e: React.FormEvent) {
+ async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSending(true)
-    await new Promise(r => setTimeout(r, 1000))
-    toast.success('Message sent! We\'ll get back to you within 24 hours.')
-    setForm({ name: '', email: '', subject: '', message: '' })
-    setSending(false)
-  }
 
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+
+      if (!res.ok) throw new Error('Failed')
+
+      toast.success('Message sent! We\'ll get back to you within 24 hours.')
+      setForm({ name: '', email: '', subject: '', message: '' })
+
+    } catch {
+      toast.error('Failed to send message. Please try again.')
+    } finally {
+      setSending(false)
+    }
+  }
   return (
     <PublicLayout>
       <section style={{ padding: '80px 0', background: 'var(--color-bg)' }}>
