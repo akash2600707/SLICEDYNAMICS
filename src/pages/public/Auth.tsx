@@ -334,7 +334,7 @@ export default function Auth() {
                 <div className="form-group">
                   <label className="form-label">Full Name</label>
                   <input className="form-input" type="text"
-                    placeholder="Jane Engineer"
+                    placeholder="Enter your full name"
                     value={fullName} onChange={e => setFullName(e.target.value)} required
                     style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}
                   />
