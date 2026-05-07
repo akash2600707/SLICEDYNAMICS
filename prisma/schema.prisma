@@ -1,0 +1,155 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  SUBMITTED          // Customer submitted, awaiting admin review
+  UNDER_REVIEW       // Admin reviewing printability & complexity
+  QUOTE_CONFIRMED    // Admin fixed final price and sent to customer
+  PAID               // Customer paid — production starts
+  PRINTING           // On the printer
+  QC                 // Quality check
+  SHIPPED            // Dispatched
+  DELIVERED          // Confirmed received
+  CANCELLED          // Cancelled at any stage
+}
+
+enum QuoteStatus {
+  ESTIMATE           // Auto-calculated on submission — NOT binding
+  CONFIRMED          // Admin-reviewed, price fixed — triggers payment
+}
+
+enum Material {
+  PLA
+  ABS
+  PETG
+  RESIN
+  SLS_NYLON
+  MJF_NYLON
+}
+
+enum Finish {
+  RAW
+  SANDED
+  PAINTED
+  POLISHED
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  role          Role      @default(CUSTOMER)
+  phone         String?
+  company       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  orders        Order[]
+
+  @@index([email])
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique @default(cuid())
+
+  // Relations
+  customerId      String
+  customer        User          @relation(fields: [customerId], references: [id])
+  files           UploadedFile[]
+  quote           Quote?
+
+  // Config chosen by customer
+  material        Material      @default(PLA)
+  colour          String        @default("White")
+  finish          Finish        @default(RAW)
+  infillPercent   Int           @default(20)
+  quantity        Int           @default(1)
+  notes           String?
+
+  // Status
+  status          OrderStatus   @default(SUBMITTED)
+
+  // Admin
+  assignedTo      String?       // Admin name or ID
+  adminNotes      String?
+
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+
+  // Shipping
+  trackingNumber  String?
+  carrier         String?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model UploadedFile {
+  id            String    @id @default(cuid())
+  orderId       String
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  originalName  String
+  storedKey     String    // S3/R2 object key
+  fileUrl       String    // Public or presigned URL
+  fileSize      Int       // bytes
+  mimeType      String
+  version       Int       @default(1)  // for design revisions
+
+  uploadedAt    DateTime  @default(now())
+
+  @@index([orderId])
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  orderId         String      @unique
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Estimate (auto-calculated, not binding)
+  estimateAmount  Float       // in INR
+  estimateBreakdown Json?     // { volumeCost, materialRate, finishMultiplier, quantity }
+
+  // Confirmed (admin-set, binding)
+  confirmedAmount Float?
+  adminNotes      String?
+  confirmedAt     DateTime?
+  confirmedById   String?     // Admin user ID
+
+  status          QuoteStatus @default(ESTIMATE)
+
+  // Payment
+  stripePaymentIntentId  String?
+  stripeInvoiceUrl       String?
+  paidAmount      Float?
+  paidAt          DateTime?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([orderId])
+}
