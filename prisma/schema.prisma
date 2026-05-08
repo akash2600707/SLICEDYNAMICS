@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Users ────────────────────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders    Order[]
+
+  @@map("users")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+// ─── Orders ───────────────────────────────────────────────────────
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique @default(cuid())
+  status      OrderStatus @default(SUBMITTED)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+
+  // Configuration
+  material    Material
+  color       String
+  finish      Finish
+  infill      Int         @default(20) // percentage
+  quantity    Int         @default(1)
+  notes       String?
+
+  // Files
+  files       OrderFile[]
+
+  // Quote
+  quote       Quote?
+
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+enum OrderStatus {
+  SUBMITTED         // customer uploaded file
+  UNDER_REVIEW      // admin is checking printability
+  QUOTE_SENT        // admin confirmed price, email sent to customer
+  PAID              // customer paid
+  PRINTING          // in production
+  QC                // quality control
+  SHIPPED           // dispatched
+  DELIVERED         // completed
+  CANCELLED
+}
+
+enum Material {
+  PLA
+  ABS
+  RESIN
+  PETG
+  TPU
+  NYLON
+}
+
+enum Finish {
+  STANDARD
+  SMOOTH
+  PAINTED
+  POLISHED
+}
+
+// ─── Files ────────────────────────────────────────────────────────
+model OrderFile {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fileName    String
+  fileSize    Int      // bytes
+  fileType    String   // stl, obj, step
+  storagePath String   // supabase storage path
+  version     Int      @default(1)
+  isRevision  Boolean  @default(false)
+  uploadedBy  String   // userId
+  createdAt   DateTime @default(now())
+
+  @@map("order_files")
+}
+
+// ─── Quotes ───────────────────────────────────────────────────────
+model Quote {
+  id              String      @id @default(cuid())
+  orderId         String      @unique
+  order           Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  estimatedPrice  Float       // auto-calculated instant estimate
+  confirmedPrice  Float?      // admin-set final price (null until confirmed)
+  currency        String      @default("INR")
+
+  status          QuoteStatus @default(ESTIMATE)
+  adminNotes      String?     // internal notes from admin
+  confirmedAt     DateTime?
+  confirmedBy     String?     // admin userId
+
+  // Stripe
+  stripePaymentIntentId String?
+  paidAt                DateTime?
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("quotes")
+}
+
+enum QuoteStatus {
+  ESTIMATE    // auto-generated, shown to customer as non-binding
+  CONFIRMED   // admin fixed the final price, sent to customer
+  PAID        // customer completed payment
+}
